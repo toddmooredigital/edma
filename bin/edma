@@ -14,4 +14,6 @@ rescue Gem::LoadError
 	exit
 end
 
-require "thor"
+require "edma"
+
+Edma::Emails.start

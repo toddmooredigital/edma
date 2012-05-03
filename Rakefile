@@ -1,23 +1,15 @@
 # -*- ruby -*-
 
-require 'rubygems'
-require 'hoe'
+# desc "run tests"
+# task :run_tests do
+# 	require 'rspec/core/rake_task'
+# 	RSpec::Core::RakeTask.new('spec')
+# end
 
-# Hoe.plugin :compiler
-# Hoe.plugin :gem_prelude_sucks
-# Hoe.plugin :inline
-# Hoe.plugin :racc
-# Hoe.plugin :rcov
-# Hoe.plugin :rubyforge
+require 'rspec/core/rake_task'
+RSpec::Core::RakeTask.new('spec')
 
-Hoe.spec 'edma' do
-  # HEY! If you fill these out in ~/.hoe_template/Rakefile.erb then
-  # you'll never have to touch them again!
-  # (delete this comment too, of course)
-
-  # developer('FIX', 'FIX@example.com')
-
-  # self.rubyforge_name = 'edmax' # if different than 'edma'
-end
+desc "Run tests"
+task :default => :spec
 
 # vim: syntax=ruby
