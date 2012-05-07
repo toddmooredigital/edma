@@ -25,12 +25,24 @@ module Edma
     method_option :file, :default => "email.html", :aliases => "-f", :desc => "name of the main email file"
     method_option :file_to_compile, :default => "email_compiled.html",
     :aliases => "-c", :desc => "the name of the file to compile to"
-    method_option :images_folder, :default => "images", :aliases, "-r",
+    method_option :images_folder, :default => "images", :aliases => "-r",
     :desc => "name of the images folder"
     method_option :skip_inline, :type => :boolean, :aliases => "-i"
     def test_email
-      puts options.inspect!
+      if options.skip_inline
+        invoke :images_to_s3
+        invoke :img_src_to_s3
+        invoke :start_litmus_test
+        cleanup()
+      else
+        invoke :to_inline
+        invoke :images_to_s3
+        invoke :img_src_to_s3
+        invoke :start_litmus_test
+        cleanup()
+      end
     end
+
 
     # Public: Takes a file and adds target blanks to that file.
     #
@@ -130,7 +142,7 @@ module Edma
     #   edma img_src_to_s3 -f example.html  
     #
     desc "img_src_to_s3", "Replace all the img tags in HTML markup to s3 source"
-    method_option :file, :default => "email_compiled.html", :aliases => "-f",
+    method_option :file_to_compile, :default => "email_compiled.html", :aliases => "-f",
     :desc => "the name of the file to replace the src of"
     method_option :folder, :default => "images", :aliases => "-r",
     :desc => "the name of the folder to where the images are"
@@ -139,7 +151,7 @@ module Edma
     def img_src_to_s3
       require 'nokogiri'
       loc = "http://"+Edma::S3ID+"/"+Edma::AWS_BUCKET+"/"+@@id
-      file_ref = @@file_ref || options.file
+      file_ref = options.file_to_compile
 
       if File.exists? file_ref
 
@@ -152,7 +164,7 @@ module Edma
         puts "== Replacing img src to S3"
         doc.xpath("//img").each do |img|
           src = img['src']
-          src = src.gsub!(/(^#{file})/, loc)
+          src = src.gsub!(/(^#{options.folder})/, loc)
           img['src'] = src
         end
 
@@ -160,11 +172,11 @@ module Edma
           file = File.new(options.write_file, "w")
           file.write(doc)
           file.close
-          puts "== Done"
         else
-          @compiled_markup = doc
-          puts "== Done"
+          ENV['EDMA_TEMP_DOC'] = doc.to_s
         end
+        puts "== Done"
+        
       else
         STDOUT.puts "Error: No file #{file_ref}"
         exit
@@ -235,26 +247,25 @@ module Edma
     #   
     #
     desc "start_litmus_test", "uploads compiled HTML markup to a Litmus app test"
-    method_option :file, :aliases => "-f",
+    method_option :file, :default => "_email.tmp.html", :aliases => "-f",
     :desc => "file to read and updload to litmus app"
     def start_litmus_test
       require 'net/http'
       require 'nokogiri'
       company = "soi"
       puts "== Starting Litmus test"
-
-      #sets the doc, uses the compiled file if it's being chained
-      if options.file
-        doc = Nokogiri::HTML(File.open(options.file))
+      
+      if ENV['EDMA_TEMP_DOC']
+        doc = ENV['EDMA_TEMP_DOC']
       else
-        if @compiled_file
-          doc = @compiled_file
-        end
-      end        
+        doc = Nokogiri::HTML(File.open(options.file))
+      end       
+
 
       xml = generate_litmus_markup(doc)
       uri = URI(Edma::LITMUS_TEST_URI)
       req = Net::HTTP::Post.new(uri.path)
+      
       req.basic_auth 'soi', Edma::LITMUS_ACCOUNT_PASSWORD
       req.content_type = 'application/xml'
       req.body = xml
@@ -275,6 +286,10 @@ module Edma
     end
     
     no_tasks do
+
+    def cleanup
+      ENV['EDMA_TEMP_DOC'] = nil
+    end
 
     def generate_litmus_markup(doc)
       array = Edma::EMAIL_CLIENTS
