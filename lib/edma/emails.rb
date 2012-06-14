@@ -1,12 +1,11 @@
 require "thor"
-require "edma/version"
 require "edma/conf"
+require "edma/utils"
 
 module Edma
-  class Emails < Thor 
-    
+  class Emails < Thor   
     VERSION = Edma::VERSION
-    @@id = File.basename(Dir.getwd)
+    @@utils = Edma::Utils.new
 
 
     # Public: Main testing method to chain a few of the others together.
@@ -150,7 +149,7 @@ module Edma
     :aliases => "-w", :desc => "the name of the folder to write to"
     def img_src_to_s3
       require 'nokogiri'
-      loc = "http://"+Edma::S3ID+"/"+Edma::AWS_BUCKET+"/"+@@id
+      loc = "http://"+Edma::S3ID+"/"+Edma::AWS_BUCKET+"/"+@@utils.id
       file_ref = options.file_to_compile
 
       if File.exists? file_ref
@@ -173,7 +172,7 @@ module Edma
           file.write(doc)
           file.close
         else
-          ENV['EDMA_TEMP_DOC'] = doc.to_s
+          @@utils.compiled_markup = doc
         end
         puts "== Done"
         
@@ -201,7 +200,6 @@ module Edma
       require 'mime/types'
       puts "== Uploading assets to S3/Cloudfront"
       
-
       AWS::S3::DEFAULT_HOST.replace Edma::S3ID
       service = AWS::S3::Base.establish_connection!(
         :access_key_id => Edma::AWS_ACCESS_KEY_ID,
@@ -220,7 +218,7 @@ module Edma
               end
 
               if !obj || (obj.etag != Digest::MD5.hexdigest(File.read(file)))
-                AWS::S3::S3Object.store("#{@@id}/"+remote_file, open("#{options.folder}/"+remote_file), Edma::AWS_BUCKET, :access => :public_read)
+                AWS::S3::S3Object.store("#{@@utils.id}/"+remote_file, open("#{options.folder}/"+remote_file), Edma::AWS_BUCKET, :access => :public_read)
                 puts "*UPLOADED: "+remote_file
               else
                 print "."
@@ -255,8 +253,8 @@ module Edma
       company = "soi"
       puts "== Starting Litmus test"
       
-      if ENV['EDMA_TEMP_DOC']
-        doc = ENV['EDMA_TEMP_DOC']
+      if @@utils.compiled_markup
+        doc = @@utils.compiled_markup
       else
         doc = Nokogiri::HTML(File.open(options.file))
       end       
@@ -292,7 +290,7 @@ module Edma
     end
 
     def generate_litmus_markup(doc)
-      array = Edma::EMAIL_CLIENTS
+      array = @@utils.email_clients
       builder = Nokogiri::XML::Builder.new do |xml|
         xml.test_set {
           xml.applications(:type => "array") {
@@ -308,7 +306,7 @@ module Edma
             xml.body {
               xml.cdata(doc)
             }
-            xml.subject @@id
+            xml.subject @@utils.id
           }
         }
       end

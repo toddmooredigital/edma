@@ -1,6 +1,6 @@
 $LOAD_PATH.push File.expand_path("../lib", __FILE__)
 require 'rake'
-require 'edma/version'
+require 'edma/conf'
 
 Gem::Specification.new do |s|
  s.name        = "edma"

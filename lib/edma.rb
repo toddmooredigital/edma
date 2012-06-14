@@ -1,5 +1,4 @@
 require "edma/emails"
-require "edma/version"
 require "edma/conf"
 
 module Edma	
